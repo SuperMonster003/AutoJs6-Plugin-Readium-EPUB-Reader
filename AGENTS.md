@@ -154,7 +154,8 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `PluginInfoService`, `ExplorerActionService` 与 `EpubReaderActivity` MUST `exported=true` 且受 PLUGIN 权限保护; `EpubReaderActivity` 只响应 `org.autojs.plugin.EXPLORER_ACTION_EXECUTE`, 独立入口 (路线图 P4) 落地时以另外的 Activity 承载 Launcher 与 `ACTION_VIEW application/epub+zip` (D27), 不把执行 Activity 直接导出给任意应用.
 - 所有对外组件逐项审查 `android:exported`; 除契约入口外不得导出其他组件.
 - `android:usesCleartextTraffic="true"` 是维护者决定 (路线图 D31: 书内 `http://` 资源照常加载), Manifest 注释 MUST 保留该说明; 更新检查 (D28) 仍只走 HTTPS.
-- 权限清单当前只包含 `INTERNET` 与 PLUGIN; 路线图 P3 (TTS 前台服务) 落地时追加 `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS` (仅开启朗读时请求), 并同步 `PluginContractInstrumentationTest` 的权限集合断言, README 安全章节与 changelog. 不申请存储, 媒体, 无障碍或悬浮窗权限 (D19).
+- 权限清单为 `INTERNET`, PLUGIN 与 D15 三项 (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`); 不申请存储, 媒体, 无障碍或悬浮窗权限 (D19). 新增任何权限 (含普通权限) MUST 在本节显式记录豁免理由, 并同步 `PluginContractInstrumentationTest` 的权限集合断言, README 安全章节与 changelog.
+- D15 权限豁免 (2026-09-20, 路线图 P3): `FOREGROUND_SERVICE` 与 `FOREGROUND_SERVICE_MEDIA_PLAYBACK` 仅用于用户显式开始朗读后的 `tts.TtsForegroundService` (不导出的 `mediaPlayback` 前台服务, 承载 media3 MediaSession 通知与耳机按键, 使熄屏后朗读继续); Android 13+ 的 `POST_NOTIFICATIONS` 仅在首次开始朗读时请求一次, 拒绝后照常朗读但没有通知控制, 不再重复请求. 服务只在朗读期间存在: 用户停止, 到达书末, 引擎出错或阅读器 Activity 销毁 (D26 关闭时) 即停止并释放; 它不持有 URI 授权, 不新增数据收集或网络用途 (语音合成由系统 TTS 引擎在其自身进程完成), `WAKE_LOCK` 仍然移除.
 
 ## 7. PluginInfo 与能力协商
 
@@ -180,6 +181,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - 阅读器状态 (`Publication`, `EpubNavigatorFactory`, 最近 `Locator`) 只驻留 `EpubReaderViewModel`; 进程被杀后从 Intent 重新打开, 不恢复导航器片段 (`createDummyFactory`).
 - 程序化跳转 (目录, 从头开始, 后续的书签 / 搜索结果) MUST 经 `EpubReaderActivity.jumpTo` 排队到导航器就绪 (`PaginationListener.onPageChanged` 首次触发) 之后再调用 `go()`: Readium 3.4.0 在初始资源加载完成前收到 `go()` 会永久停止 `currentLocator` 更新 (路线图 2026-09-19 会话记录).
 - 插件不上报遥测, 不发起书籍之外的网络请求; 手动更新检查 (P4, D28) 只访问 GitHub Releases 且只走 HTTPS.
+- 朗读 (路线图 P3): `tts/TtsController` 驻留 `EpubReaderViewModel` 并持有 Readium `TtsNavigator` (`tts/TtsSession`), `tts/TtsForegroundService` (media3 `MediaSessionService`, 不导出, `mediaPlayback`) 只持有 MediaSession 与通知, 上一句 / 下一句 / 停止走自定义 `SessionCommand` (Readium 的 media3 适配器不声明 seek 命令), 耳机上一曲 / 下一曲映射到句子; 关闭阅读器, 手动翻页或跳转都停止朗读. 引擎经 `tts/SystemTtsEngine` (改编自 Readium `AndroidTtsEngine`, 保留 BSD-3 版权头) 绑定: 无参 `TextToSpeech` 构造只在已装引擎为系统应用时才会回退到它, 小米设备的小爱引擎装在 `/data/app` 且 `tts_default_synth` 为空, 默认查找失败而显式包名可用 (API 33 Redmi 12C 探针: 无参 24 ms 失败, 指定 `com.xiaomi.mibrain.speech` 317 ms 成功 4 个语音), 因此默认失败后按 `SystemTtsEngine.fallbackEngine` 指定引擎并在重连时复用; API 30+ 还 MUST 在 `<queries>` 声明 `android.intent.action.TTS_SERVICE` 与 `android.speech.tts.engine.INSTALL_TTS_DATA`, 否则引擎对插件不可见. 语音 / 语言与引擎选择策略保持 Android-free (`tts/TtsVoicePolicy`, `SystemTtsEngine.fallbackEngine`).
 - 纯逻辑 (Intent 策略, 路径策略, 指纹, 范围裁剪, 目录扁平化, 版本比较, 偏好编解码与主题配色 (`prefs/`), 字体文件校验与字体目录编解码 (`fonts/`), 后续的文本分块) 保持 Android-free, 由 JUnit4 覆盖.
 
 ## 10. 主项目职责
@@ -243,6 +245,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `fonts/FontFileValidatorTest`, `fonts/FontCatalogCodecTest`, `store/FontStoreTest`: SFNT 签名 / 截断 / `name` 表优先级与清洗, 目录信封往返与损坏条目, 导入 (哈希命名, 去重, 限长, 上限, 族名冲突) / 删除 / 缺文件剔除.
 - `store/BookmarkCodecTest`, `reader/BookmarkPolicyTest` (+ `store/BookDataStoreTest` 的书签用例): `bookmarks.json` 往返 / 损坏条目 / 上限 / 并集, 当前页判定 (分页页号, 滚动 position, 固定版式资源), 定位器合成, 片段; 整文件写与空表删文件, 迁移并集.
 - `reader/LinkPolicyTest`, `reader/ImageDecodingTest`: 外链分类 (web / 系统 / 拒绝) 与链接历史栈; 图片降采样倍率.
+- `tts/TtsVoicePolicyTest`, `tts/SystemTtsEngineTest`: 语言标签规范化与匹配, 出版物语言默认, 语音排序 (精确区域, 离线优先, 质量, 稳定 id 序); 默认引擎不可用时的显式引擎选择.
 - 后续阶段按路线图补充: 文本分块, 错误映射, 上限.
 
 ### 15.2 Android instrumentation (`app/src/androidTest`)
@@ -261,6 +264,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `EpubReaderControlsInstrumentationTest`: 点按区三种设置 (经 `Activity.dispatchTouchEvent`, 点在页面下部空白处以避开链接), 键盘键在无焦点与 WebView 有焦点时都翻页 (`sendKeyDownUpSync`), 选中文本的复制 / 分享 / 网页搜索 / 文本处理 intent; 证据写入 `files/p2-evidence/controls-*.txt`.
 - `EpubReaderLinksInstrumentationTest`: 页内 JS 点击书内链接后的跳转与返回栈 (`onBackPressedDispatcher`), `noteref` 注释对话框, 外链策略经阻塞 `ActivityMonitor` 计数 (确认 / 直开 / mailto / tel / 拒绝); 证据写入 `files/p2-evidence/links-*.txt` 与截图 `links-note-*.png`.
 - `EpubReaderImagesInstrumentationTest`: 可重排页点击 `img` 打开查看器 (href / 说明文字 / 关闭后页面不动), 固定版式不打开; 证据写入 `files/p2-evidence/images-*.txt` 与截图 `images-viewer-*.png`.
+- `EpubReaderTtsInstrumentationTest`: 系统引擎从当前页朗读英文夹具 (API 33+ 先授予 `POST_NOTIFICATIONS`), 当前句 decoration (`[data-group="tts"] > div`, 从 instrumentation 线程轮询, 一句可占多行因此计数 >= 1) 并自动前进, 暂停 / 播放, 上一句 / 下一句, 前台服务与通知 2001 存在, 停止后全部释放且语速偏好落盘; 逐句跳到第 2 章时页面跟随, 手动跳转停止朗读; 熄屏 3 分钟每分钟句子都在前进 (`KEYCODE_SLEEP` 只在 `KeyguardManager.isDeviceSecure` 为假时发出, 安全锁屏设备改为 `KEYCODE_HOME` 置于后台并记录模式, 运行参数 `screenOff=force` 强制熄屏后需手动解锁); 音频焦点被抢占 (短暂抢占 Readium 适配器继续朗读, 永久抢占暂停且不自动恢复, 播放从暂停句继续); 通知动作 (暂停 / 播放 / 下一句 / 上一句 / 停止, 经 `Notification.Action.actionIntent.send()`); 关闭阅读器停止服务. 无引擎或无语音数据的设备记录后 `Assume` 跳过; 证据写入 `files/p2-evidence/tts-*.txt`.
 - `book/BookFingerprintInstrumentationTest`: 大样本 (200 MiB, 空间不足时 64 MiB) 经描述符的临时键与全量哈希耗时.
 - 有设备或模拟器时执行 `:app:connectedDebugAndroidTest` (至少 API 28 与 API 35 各一次; 2026-09-19 起的矩阵为 API 28 / 33 / 35 / 37); 性能度量与正确性测试分开.
 
