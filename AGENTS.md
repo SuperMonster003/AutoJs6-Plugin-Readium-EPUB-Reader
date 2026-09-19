@@ -28,7 +28,7 @@
 | 脚本全局对象 | `epub` (宿主侧, 路线图 D1 / P6, 尚未落地) |
 | 专用 API | `epub-api` (宿主 `plugin-api/epub-api`, 路线图 P5.1 落地后以 AAR 形式进入 `libs/`) |
 | 阅读引擎 | Readium Kotlin Toolkit `3.4.0` (`readium-shared` / `readium-streamer` / `readium-navigator` / `readium-navigator-media-tts`, 路线图 D2 / D18) |
-| 平台版本插件 | `io.github.supermonster003.autojs6-platform-versions` 1.8.2 |
+| 平台版本插件 | `io.github.supermonster003.autojs6-platform-versions` 1.8.3 |
 | 发布文件名 | `autojs6-plugin-readium-epub-reader-v{VERSION_NAME}-{CRC32}.apk` (单 APK) |
 
 ## 3. 工作区与提交
@@ -105,7 +105,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 
 ### 5.1 在线平台版本插件
 
-- MUST 使用在线仓库中的 `io.github.supermonster003.autojs6-platform-versions` (当前 1.8.2). 升级时先确认新版本已能从公共仓库解析, 并与其他官方插件仓库统一升级.
+- MUST 使用在线仓库中的 `io.github.supermonster003.autojs6-platform-versions` (当前 1.8.3). 升级时先确认新版本已能从公共仓库解析, 并与其他官方插件仓库统一升级.
 - 禁止使用 `mavenLocal()`, 禁止本地平台版本实现, 禁止提交 `gradle/data` 消费端覆盖.
 - 平台插件只在根 `settings.gradle.kts` 应用一次, 且整个 `plugins` 块位于 `includeBuild("build-logic")` 之前; `build-logic/settings.gradle.kts` 不应用它.
 - 根 `build.gradle.kts` 用 `System.getProperty("gradle.agp.version")` 声明 `com.android.application` 并 `apply false`; 模块只应用插件, 不硬编码版本. 版本逃生门只用 `version.properties` 的 `OVERRIDDEN_*`, 常规构建保持 `NONE`.
