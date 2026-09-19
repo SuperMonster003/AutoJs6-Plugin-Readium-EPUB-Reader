@@ -175,7 +175,8 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - 书籍 MUST 只经只读 `ParcelFileDescriptor` 或 `content://` URI 进入 (D11): `book/PfdResource` 以 `FileChannel` 定位读实现 Readium `Resource`, `sourceUrl` 为 null 以走 `StreamingZipArchiveProvider`; 任何路径都不把 EPUB 复制到缓存或解压到磁盘. `PfdResource.close()` 关闭描述符, 调用方不得重复关闭.
 - `book/BookOpener` 是唯一的 Readium 打开入口 (`AssetRetriever` + `DefaultPublicationParser` + `PublicationOpener`, `pdfFactory = null`), 先确认 `Format.conformsTo(Specification.Epub)` 再解析; 错误映射为 `BookOpenError`, 其 `message` 可直接展示. LCP 标记的书籍由 Readium fallback content protection 拒绝, 不做解密.
 - `book/BookFingerprint` (D23): `quickKey` (大小 + 首 1 MiB + 末 64 KiB) 为临时键, `fullKey` (全文件 SHA-256) 为正式键; 二者与 `ByteRanges` 保持 Android-free 以便 JUnit 覆盖.
-- 书内脚本与远程资源保持 Readium 默认行为 (D6): 不剥离 `<script>`, 不拦截请求, 不注入 Readium 之外的 JavaScript 接口, 不开放 `file://`. 外部链接只放行 `http` / `https`, 默认先确认再交给系统浏览器 (D25).
+- 书内脚本与远程资源保持 Readium 默认行为 (D6): 不剥离 `<script>`, 不拦截请求, 不注入 Readium 之外的 JavaScript 接口, 不开放 `file://`. 外部链接 (`reader/LinkPolicy`, D25): `http` / `https` 默认先确认再交给系统浏览器, 菜单可改为直接打开; `mailto:` / `tel:` 交给系统; 其它 scheme 拒绝. Readium 3.4.0 只把层级 URL 交到 `onExternalLinkActivated`, `mailto:` / `tel:` 由 WebView 自行处理, 书内链接到达回调时已丢失 fragment (路线图 P2.7 附带发现 2 / 3).
+- 键盘翻页在 `EpubReaderActivity.dispatchKeyEvent` 截获 (焦点视图 `onCheckIsTextEditor()` 为真时放行), 不依赖 Readium `InputListener.onKey`: 有焦点的 WebView 会吞掉方向键, 且导航器只转发带 `KeyboardEvent.code` 的按键 (路线图 P2.7 附带发现 1). 点按区 / 键盘 / 外链 / 图片降采样策略保持 Android-free (`reader/PageTurnPolicy`, `reader/LinkPolicy`, `reader/ImageDecoding`).
 - 阅读器状态 (`Publication`, `EpubNavigatorFactory`, 最近 `Locator`) 只驻留 `EpubReaderViewModel`; 进程被杀后从 Intent 重新打开, 不恢复导航器片段 (`createDummyFactory`).
 - 程序化跳转 (目录, 从头开始, 后续的书签 / 搜索结果) MUST 经 `EpubReaderActivity.jumpTo` 排队到导航器就绪 (`PaginationListener.onPageChanged` 首次触发) 之后再调用 `go()`: Readium 3.4.0 在初始资源加载完成前收到 `go()` 会永久停止 `currentLocator` 更新 (路线图 2026-09-19 会话记录).
 - 插件不上报遥测, 不发起书籍之外的网络请求; 手动更新检查 (P4, D28) 只访问 GitHub Releases 且只走 HTTPS.
@@ -237,10 +238,11 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `ReleaseHistoryTest`: locale 到 changelog 资产的映射与回退.
 - `PluginRuntimeInfoTest`: 两条动作规格 (ID / 位置 / 优先级 / 目标 / 访问 / MIME / 扩展名), 共享标签与 Activity.
 - `store/ProgressCodecTest`, `store/BookDataStoreTest`, `store/ProgressThrottleTest`: 进度 JSON 往返与损坏输入, 原子写 / 迁移合并 / LRU / 别名 / 非法键, 节流与冲刷.
-- `book/TocFlattenerTest`, `reader/PageTurnPolicyTest`, `reader/ReaderProgressTest`: 目录扁平化上限与当前章节匹配, 点按区与音量键, 进度快照.
+- `book/TocFlattenerTest`, `reader/PageTurnPolicyTest`, `reader/ReaderProgressTest`: 目录扁平化上限与当前章节匹配, 点按区 (关闭 / 左右 / 上下, RTL 镜像) 与音量键 / 键盘键 (`KeyboardEvent.code` 与 keycode), 进度快照.
 - `prefs/PreferencesCodecTest`, `prefs/ThemeMappingTest`, `prefs/ReaderThemeColorsTest`, `prefs/PreferenceRangesTest`, `store/ReaderPreferencesStoreTest`: 偏好信封往返 / 白名单 / 钳制 / 损坏输入, 主题模式映射, 对比度与系统栏亮度, 步进吸附, 文件读写与清除.
 - `fonts/FontFileValidatorTest`, `fonts/FontCatalogCodecTest`, `store/FontStoreTest`: SFNT 签名 / 截断 / `name` 表优先级与清洗, 目录信封往返与损坏条目, 导入 (哈希命名, 去重, 限长, 上限, 族名冲突) / 删除 / 缺文件剔除.
 - `store/BookmarkCodecTest`, `reader/BookmarkPolicyTest` (+ `store/BookDataStoreTest` 的书签用例): `bookmarks.json` 往返 / 损坏条目 / 上限 / 并集, 当前页判定 (分页页号, 滚动 position, 固定版式资源), 定位器合成, 片段; 整文件写与空表删文件, 迁移并集.
+- `reader/LinkPolicyTest`, `reader/ImageDecodingTest`: 外链分类 (web / 系统 / 拒绝) 与链接历史栈; 图片降采样倍率.
 - 后续阶段按路线图补充: 文本分块, 错误映射, 上限.
 
 ### 15.2 Android instrumentation (`app/src/androidTest`)
@@ -256,8 +258,11 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `EpubReaderSearchInstrumentationTest`: 搜索命中数与从夹具 XHTML 数出的期望一致, 章节头, 打开结果后的 `currentLocator.href` / 搜索条文案 / 页面 decoration 计数 (`[data-group="search"] > div`), 上一处 / 关闭, 过短与空结果提示, 2000 页样本的 50 一批与 500 截断与取消, 固定版式跳页; 证据写入 `files/p2-evidence/search-*.txt` 与截图 `search-*.png`.
 - `EpubReaderExternalSamplesTest`: 只在 runner 参数 `external=true` 且 `cache/epub-reader-test-documents/` 里有约定文件名的本地真实书籍时运行 (否则 `Assume` 跳过, 门禁不带此参数), 记录打开 / 位置 / 搜索 / 跳转耗时与计数到 `files/p2-evidence/external-*.txt`; 书籍只经 `adb push` + `run-as cp` 放到设备, 永不入库.
 - `EpubReaderBookmarksInstrumentationTest`: 工具栏切换添加 / 移除 (章节名, 片段, 菜单标题), 面板时间倒序 / 跳转 / 删除 / 全部清除, `bookmarks.json` 落盘与重开保留 (恢复页显示填充图标), 预写 500 条后的上限拒绝, 固定版式按资源; 证据写入 `files/p2-evidence/bookmarks-*.txt` 与截图 `bookmarks-*.png`.
+- `EpubReaderControlsInstrumentationTest`: 点按区三种设置 (经 `Activity.dispatchTouchEvent`, 点在页面下部空白处以避开链接), 键盘键在无焦点与 WebView 有焦点时都翻页 (`sendKeyDownUpSync`), 选中文本的复制 / 分享 / 网页搜索 / 文本处理 intent; 证据写入 `files/p2-evidence/controls-*.txt`.
+- `EpubReaderLinksInstrumentationTest`: 页内 JS 点击书内链接后的跳转与返回栈 (`onBackPressedDispatcher`), `noteref` 注释对话框, 外链策略经阻塞 `ActivityMonitor` 计数 (确认 / 直开 / mailto / tel / 拒绝); 证据写入 `files/p2-evidence/links-*.txt` 与截图 `links-note-*.png`.
+- `EpubReaderImagesInstrumentationTest`: 可重排页点击 `img` 打开查看器 (href / 说明文字 / 关闭后页面不动), 固定版式不打开; 证据写入 `files/p2-evidence/images-*.txt` 与截图 `images-viewer-*.png`.
 - `book/BookFingerprintInstrumentationTest`: 大样本 (200 MiB, 空间不足时 64 MiB) 经描述符的临时键与全量哈希耗时.
-- 有设备或模拟器时执行 `:app:connectedDebugAndroidTest` (API 24 与 API 35 各一次); 性能度量与正确性测试分开.
+- 有设备或模拟器时执行 `:app:connectedDebugAndroidTest` (至少 API 28 与 API 35 各一次; 2026-09-19 起的矩阵为 API 28 / 33 / 35 / 37); 性能度量与正确性测试分开.
 
 ### 15.3 设备冒烟
 
