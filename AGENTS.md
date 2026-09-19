@@ -178,7 +178,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - 阅读器状态 (`Publication`, `EpubNavigatorFactory`, 最近 `Locator`) 只驻留 `EpubReaderViewModel`; 进程被杀后从 Intent 重新打开, 不恢复导航器片段 (`createDummyFactory`).
 - 程序化跳转 (目录, 从头开始, 后续的书签 / 搜索结果) MUST 经 `EpubReaderActivity.jumpTo` 排队到导航器就绪 (`PaginationListener.onPageChanged` 首次触发) 之后再调用 `go()`: Readium 3.4.0 在初始资源加载完成前收到 `go()` 会永久停止 `currentLocator` 更新 (路线图 2026-09-19 会话记录).
 - 插件不上报遥测, 不发起书籍之外的网络请求; 手动更新检查 (P4, D28) 只访问 GitHub Releases 且只走 HTTPS.
-- 纯逻辑 (Intent 策略, 路径策略, 指纹, 范围裁剪, 目录扁平化, 版本比较, 偏好编解码与主题配色 (`prefs/`), 后续的文本分块) 保持 Android-free, 由 JUnit4 覆盖.
+- 纯逻辑 (Intent 策略, 路径策略, 指纹, 范围裁剪, 目录扁平化, 版本比较, 偏好编解码与主题配色 (`prefs/`), 字体文件校验与字体目录编解码 (`fonts/`), 后续的文本分块) 保持 Android-free, 由 JUnit4 覆盖.
 
 ## 10. 主项目职责
 
@@ -220,7 +220,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 
 ## 14. 数据存储, 独立界面与发行历史 (CONDITIONAL, 路线图 P1.3 / P4)
 
-- 进度与书签 (D13) 存于插件私有目录 `files/books/<指纹>/`, 键为内容指纹, 不落盘明文路径; 原子写用纯 JVM 的 `store/AtomicFiles` (临时文件 + fsync + 重命名, 不用 `android.util.AtomicFile`, 便于 JUnit 覆盖); 临时键迁移到正式指纹后在 `files/books/aliases/<临时键>` 记录别名, 打开时先经 `BookDataStore.resolveKey` 解析; 每本书书签上限 500, 书目上限 500 (LRU, 淘汰时清理悬空别名). 用户导入的字体是唯一的其它落盘内容.
+- 进度与书签 (D13) 存于插件私有目录 `files/books/<指纹>/`, 键为内容指纹, 不落盘明文路径; 原子写用纯 JVM 的 `store/AtomicFiles` (临时文件 + fsync + 重命名, 不用 `android.util.AtomicFile`, 便于 JUnit 覆盖); 临时键迁移到正式指纹后在 `files/books/aliases/<临时键>` 记录别名, 打开时先经 `BookDataStore.resolveKey` 解析; 每本书书签上限 500, 书目上限 500 (LRU, 淘汰时清理悬空别名). 用户导入的字体是唯一的其它落盘内容: `files/fonts/<sha256>.<ttf|otf>` + `files/fonts/index.json` (`store/FontStore`, 信封 `format` / `fonts[]`, 单个 20 MiB, 最多 10 个, 经 `fonts/FontFileValidator` 校验 SFNT 签名与 `name` 表后才落盘, 同哈希去重, CSS 族名经 `FontFamilyNames.resolve` 避开保留名与重名并固化在条目中); 字体经 `book/FontsContainer` 以 `https://readium_package/fonts/<file>` 服务给导航器, 不复制到 assets, 不经 `servedAssets`; 导入 / 删除后重建导航器.
 - 全局阅读偏好 (D14) 存于 `files/reader-preferences.json` (`store/ReaderPreferencesStore`, 信封 `format` / `themeMode` / `preferences`, `preferences` 为 Readium `EpubPreferencesSerializer` 的 JSON); 读取经 `prefs/PreferencesCodec` 白名单 + 钳制 + 枚举校验, 损坏回退默认; 文件只存 `themeMode`, `theme` 在提交导航器时由 `ThemeMapping.resolve(themeMode, hostDarkMode)` 派生; 旧 `reader_settings.scroll_mode` 只在文件不存在时迁移一次; 写入 400 ms 去抖, `onPause` / `onCleared` 冲刷.
 - 设置页与 Launcher 入口 (P4) SHOULD 跟随宿主的语言, 夜间模式和主题色 (`HostAppearanceActivity`), 宿主配置不可用时安全回退; 最近书籍只保存用户经系统文档选择器明确授予的持久 URI.
 - 设置页 MUST 提供独立的 `发行历史` 入口 (`ReleaseHistory.kt`, 按当前 locale 读取 `doc/CHANGELOG-{LANGUAGE_TAG}.md`, 找不到时回退英语); 更新检查仅手动 (D28).
@@ -238,6 +238,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `store/ProgressCodecTest`, `store/BookDataStoreTest`, `store/ProgressThrottleTest`: 进度 JSON 往返与损坏输入, 原子写 / 迁移合并 / LRU / 别名 / 非法键, 节流与冲刷.
 - `book/TocFlattenerTest`, `reader/PageTurnPolicyTest`, `reader/ReaderProgressTest`: 目录扁平化上限与当前章节匹配, 点按区与音量键, 进度快照.
 - `prefs/PreferencesCodecTest`, `prefs/ThemeMappingTest`, `prefs/ReaderThemeColorsTest`, `prefs/PreferenceRangesTest`, `store/ReaderPreferencesStoreTest`: 偏好信封往返 / 白名单 / 钳制 / 损坏输入, 主题模式映射, 对比度与系统栏亮度, 步进吸附, 文件读写与清除.
+- `fonts/FontFileValidatorTest`, `fonts/FontCatalogCodecTest`, `store/FontStoreTest`: SFNT 签名 / 截断 / `name` 表优先级与清洗, 目录信封往返与损坏条目, 导入 (哈希命名, 去重, 限长, 上限, 族名冲突) / 删除 / 缺文件剔除.
 - 后续阶段按路线图补充: 书签编解码, 文本分块, 错误映射, 上限.
 
 ### 15.2 Android instrumentation (`app/src/androidTest`)
@@ -247,6 +248,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `book/PfdResourceInstrumentationTest`: 描述符资源的长度与定位读 (含并发), Readium 经描述符打开 EPUB 2 / EPUB 3 样本 (标题, 阅读顺序, 目录, 章节内容), 损坏样本以错误结束而不崩溃.
 - `EpubReaderUiInstrumentationTest`, `EpubReaderProgressInstrumentationTest`: 经 debug `EpubReaderTestContentProvider` 用完整 v2 信封启动阅读器; 翻页, 目录跳转, 重建恢复, 错误态, 进度落盘与重开恢复, 别名, 音量键与滚动模式, 就绪前跳转重放; 证据写入 `files/p0-spike/` 与 `files/p1-evidence/`, 用 `adb exec-out run-as <包名> cat` 拉取.
 - `EpubReaderPreferencesInstrumentationTest`: 偏好到达导航器 (`EpubSettings` 与 Readium CSS `--USER__fontSize`), chrome 配色, 落盘与重启恢复, 面板控件, 旧 `scroll_mode` 迁移; 证据写入 `files/p2-evidence/`.
+- `EpubReaderFontsInstrumentationTest`: 导入后 WebView `document.fonts` 中的 FontFace 已加载且正文字体族跟随, 重启后保留, 删除后偏好回退; 重复 / 非字体 / TTC / 缺失文档不改目录; 面板列出并可选择导入字体; 证据写入 `files/p2-evidence/fonts-api<N>.txt`.
 - `book/BookFingerprintInstrumentationTest`: 大样本 (200 MiB, 空间不足时 64 MiB) 经描述符的临时键与全量哈希耗时.
 - 有设备或模拟器时执行 `:app:connectedDebugAndroidTest` (API 24 与 API 35 各一次); 性能度量与正确性测试分开.
 
