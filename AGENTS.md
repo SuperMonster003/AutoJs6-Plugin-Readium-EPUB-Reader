@@ -252,6 +252,8 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `EpubReaderFontsInstrumentationTest`: 导入后 WebView `document.fonts` 中的 FontFace 已加载且正文字体族跟随, 重启后保留, 删除后偏好回退; 重复 / 非字体 / TTC / 缺失文档不改目录; 面板列出并可选择导入字体; 证据写入 `files/p2-evidence/fonts-api<N>.txt`.
 - `EpubReaderDirectionInstrumentationTest`: 日文 / 繁体中文竖排样本的 `verticalText` / `scroll` / `readingProgression` 与页面 `writing-mode`, 强制横排 / 自动切换, 目录跳转与回退; 阿拉伯语样本 RTL 与 `direction: rtl`; 界面方向跟随宿主语言 (无宿主或 API < 33 时测试用 per-app locale 胜出) 且与正文无关; 证据写入 `files/p2-evidence/direction-*.txt` 与截图 `direction-*.png` (归档到 `docs/images/evidence/`).
 - `EpubReaderFixedLayoutInstrumentationTest`: 固定版式样本的 `第 x / N 页` 标签, 竖屏单页 / 横屏自动双页 / 偏好强制, 面板隐藏文字偏好并提供双页组, 菜单无滚动模式, 经 `Activity.dispatchTouchEvent` 分发的双指缩放与拖动 (经反射读 `R2FXLLayout`), 截图用 `PixelCopy` 复制窗口; 证据写入 `files/p2-evidence/fxl-*.txt` 与截图 `fxl-*.png`.
+- `EpubReaderSearchInstrumentationTest`: 搜索命中数与从夹具 XHTML 数出的期望一致, 章节头, 打开结果后的 `currentLocator.href` / 搜索条文案 / 页面 decoration 计数 (`[data-group="search"] > div`), 上一处 / 关闭, 过短与空结果提示, 2000 页样本的 50 一批与 500 截断与取消, 固定版式跳页; 证据写入 `files/p2-evidence/search-*.txt` 与截图 `search-*.png`.
+- `EpubReaderExternalSamplesTest`: 只在 runner 参数 `external=true` 且 `cache/epub-reader-test-documents/` 里有约定文件名的本地真实书籍时运行 (否则 `Assume` 跳过, 门禁不带此参数), 记录打开 / 位置 / 搜索 / 跳转耗时与计数到 `files/p2-evidence/external-*.txt`; 书籍只经 `adb push` + `run-as cp` 放到设备, 永不入库.
 - `book/BookFingerprintInstrumentationTest`: 大样本 (200 MiB, 空间不足时 64 MiB) 经描述符的临时键与全量哈希耗时.
 - 有设备或模拟器时执行 `:app:connectedDebugAndroidTest` (API 24 与 API 35 各一次); 性能度量与正确性测试分开.
 
@@ -261,7 +263,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 
 ### 15.4 样本
 
-- `docs/fixtures/` 由 `.python/generate_fixtures.py` 生成 (英文基线 + 日文竖排 / 繁体中文竖排 / 阿拉伯语 RTL 的 `Locale` 变体 + 六版固定版式图画书), `SHA256SUMS.txt` 与 `README.md` 同步; 外部样本 (IDPF / W3C) 加入前 MUST 确认许可证并在 README 记录来源与 SHA-256; 真实书籍永不入库.
+- `docs/fixtures/` 由 `.python/generate_fixtures.py` 生成 (英文基线 + 日文竖排 / 繁体中文竖排 / 阿拉伯语 RTL 的 `Locale` 变体 + 六版固定版式图画书), `SHA256SUMS.txt` 与 `README.md` 同步; 外部样本 (IDPF / W3C) 加入前 MUST 确认许可证并在 README 记录来源与 SHA-256; 真实书籍永不入库; 需要真实书籍度量时按 `EpubReaderExternalSamplesTest` 的约定文件名推到设备缓存目录并用 runner 参数 `external=true` 单独运行.
 
 ## 16. CI 基线
 
