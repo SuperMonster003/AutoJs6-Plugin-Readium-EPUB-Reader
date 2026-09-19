@@ -90,7 +90,8 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 |-- build-logic/                org.autojs.build.{utils,versions,signs,jvm-convention,...} 约定插件
 |-- docs/                       16kb.md, explorer-action-compatibility.md, development/repository-standard.md
 |   |-- dev/                    阶段证据 (p0-readium-spike.md 等)
-|   `-- fixtures/               生成的 EPUB 样本 + SHA256SUMS.txt + README.md (androidTest assets 来源)
+|   |-- fixtures/               生成的 EPUB 样本 + SHA256SUMS.txt + README.md (androidTest assets 来源)
+|   `-- images/evidence/        真机截图证据 (降采样 PNG, P2.3 起)
 |-- gradle/                     libs.versions.toml, explorer-action-compatibility.properties, wrapper/
 |-- libs/                       宿主 API AAR (哈希锁定, 见 libs/README.md)
 |-- locks/                      host-api-aars.lock
@@ -249,6 +250,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `EpubReaderUiInstrumentationTest`, `EpubReaderProgressInstrumentationTest`: 经 debug `EpubReaderTestContentProvider` 用完整 v2 信封启动阅读器; 翻页, 目录跳转, 重建恢复, 错误态, 进度落盘与重开恢复, 别名, 音量键与滚动模式, 就绪前跳转重放; 证据写入 `files/p0-spike/` 与 `files/p1-evidence/`, 用 `adb exec-out run-as <包名> cat` 拉取.
 - `EpubReaderPreferencesInstrumentationTest`: 偏好到达导航器 (`EpubSettings` 与 Readium CSS `--USER__fontSize`), chrome 配色, 落盘与重启恢复, 面板控件, 旧 `scroll_mode` 迁移; 证据写入 `files/p2-evidence/`.
 - `EpubReaderFontsInstrumentationTest`: 导入后 WebView `document.fonts` 中的 FontFace 已加载且正文字体族跟随, 重启后保留, 删除后偏好回退; 重复 / 非字体 / TTC / 缺失文档不改目录; 面板列出并可选择导入字体; 证据写入 `files/p2-evidence/fonts-api<N>.txt`.
+- `EpubReaderDirectionInstrumentationTest`: 日文 / 繁体中文竖排样本的 `verticalText` / `scroll` / `readingProgression` 与页面 `writing-mode`, 强制横排 / 自动切换, 目录跳转与回退; 阿拉伯语样本 RTL 与 `direction: rtl`; 界面方向跟随宿主语言 (无宿主或 API < 33 时测试用 per-app locale 胜出) 且与正文无关; 证据写入 `files/p2-evidence/direction-*.txt` 与截图 `direction-*.png` (归档到 `docs/images/evidence/`).
 - `book/BookFingerprintInstrumentationTest`: 大样本 (200 MiB, 空间不足时 64 MiB) 经描述符的临时键与全量哈希耗时.
 - 有设备或模拟器时执行 `:app:connectedDebugAndroidTest` (API 24 与 API 35 各一次); 性能度量与正确性测试分开.
 
@@ -258,7 +260,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 
 ### 15.4 样本
 
-- `docs/fixtures/` 由 `.python/generate_fixtures.py` 生成, `SHA256SUMS.txt` 与 `README.md` 同步; 外部样本 (IDPF / W3C) 加入前 MUST 确认许可证并在 README 记录来源与 SHA-256; 真实书籍永不入库.
+- `docs/fixtures/` 由 `.python/generate_fixtures.py` 生成 (英文基线 + 日文竖排 / 繁体中文竖排 / 阿拉伯语 RTL 的 `Locale` 变体), `SHA256SUMS.txt` 与 `README.md` 同步; 外部样本 (IDPF / W3C) 加入前 MUST 确认许可证并在 README 记录来源与 SHA-256; 真实书籍永不入库.
 
 ## 16. CI 基线
 
