@@ -176,6 +176,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `book/BookFingerprint` (D23): `quickKey` (大小 + 首 1 MiB + 末 64 KiB) 为临时键, `fullKey` (全文件 SHA-256) 为正式键; 二者与 `ByteRanges` 保持 Android-free 以便 JUnit 覆盖.
 - 书内脚本与远程资源保持 Readium 默认行为 (D6): 不剥离 `<script>`, 不拦截请求, 不注入 Readium 之外的 JavaScript 接口, 不开放 `file://`. 外部链接只放行 `http` / `https`, 默认先确认再交给系统浏览器 (D25).
 - 阅读器状态 (`Publication`, `EpubNavigatorFactory`, 最近 `Locator`) 只驻留 `EpubReaderViewModel`; 进程被杀后从 Intent 重新打开, 不恢复导航器片段 (`createDummyFactory`).
+- 程序化跳转 (目录, 从头开始, 后续的书签 / 搜索结果) MUST 经 `EpubReaderActivity.jumpTo` 排队到导航器就绪 (`PaginationListener.onPageChanged` 首次触发) 之后再调用 `go()`: Readium 3.4.0 在初始资源加载完成前收到 `go()` 会永久停止 `currentLocator` 更新 (路线图 2026-09-19 会话记录).
 - 插件不上报遥测, 不发起书籍之外的网络请求; 手动更新检查 (P4, D28) 只访问 GitHub Releases 且只走 HTTPS.
 - 纯逻辑 (Intent 策略, 路径策略, 指纹, 范围裁剪, 目录扁平化, 版本比较, 后续的偏好编解码与文本分块) 保持 Android-free, 由 JUnit4 覆盖.
 
@@ -219,7 +220,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 
 ## 14. 数据存储, 独立界面与发行历史 (CONDITIONAL, 路线图 P1.3 / P4)
 
-- 进度与书签 (D13) 存于插件私有目录 `files/books/<指纹>/`, 键为内容指纹, 不落盘明文路径; `AtomicFile` 原子写; 每本书书签上限 500, 书目上限 500 (LRU). 用户导入的字体是唯一的其它落盘内容.
+- 进度与书签 (D13) 存于插件私有目录 `files/books/<指纹>/`, 键为内容指纹, 不落盘明文路径; 原子写用纯 JVM 的 `store/AtomicFiles` (临时文件 + fsync + 重命名, 不用 `android.util.AtomicFile`, 便于 JUnit 覆盖); 临时键迁移到正式指纹后在 `files/books/aliases/<临时键>` 记录别名, 打开时先经 `BookDataStore.resolveKey` 解析; 每本书书签上限 500, 书目上限 500 (LRU, 淘汰时清理悬空别名). 用户导入的字体是唯一的其它落盘内容.
 - 设置页与 Launcher 入口 (P4) SHOULD 跟随宿主的语言, 夜间模式和主题色 (`HostAppearanceActivity`), 宿主配置不可用时安全回退; 最近书籍只保存用户经系统文档选择器明确授予的持久 URI.
 - 设置页 MUST 提供独立的 `发行历史` 入口 (`ReleaseHistory.kt`, 按当前 locale 读取 `doc/CHANGELOG-{LANGUAGE_TAG}.md`, 找不到时回退英语); 更新检查仅手动 (D28).
 - 所有界面覆盖无障碍标签, RTL, 大字体, 夜间模式与进程恢复.
@@ -232,13 +233,18 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 - `EpubReaderIntentPolicyTest`: `isSupportedEpub` 的扩展名 / MIME / 冲突容器规则, `sanitizeDisplayName`.
 - `book/ByteRangesTest`, `book/BookFingerprintTest`: 范围裁剪边界, 指纹的确定性 / 覆盖范围 / 与文件名无关.
 - `ReleaseHistoryTest`: locale 到 changelog 资产的映射与回退.
-- 后续阶段按路线图补充: 进度 / 书签编解码, 偏好编解码, 目录扁平化, 文本分块, 错误映射, 上限.
+- `PluginRuntimeInfoTest`: 两条动作规格 (ID / 位置 / 优先级 / 目标 / 访问 / MIME / 扩展名), 共享标签与 Activity.
+- `store/ProgressCodecTest`, `store/BookDataStoreTest`, `store/ProgressThrottleTest`: 进度 JSON 往返与损坏输入, 原子写 / 迁移合并 / LRU / 别名 / 非法键, 节流与冲刷.
+- `book/TocFlattenerTest`, `reader/PageTurnPolicyTest`, `reader/ReaderProgressTest`: 目录扁平化上限与当前章节匹配, 点按区与音量键, 进度快照.
+- 后续阶段按路线图补充: 书签编解码, 偏好编解码, 文本分块, 错误映射, 上限.
 
 ### 15.2 Android instrumentation (`app/src/androidTest`)
 
 - `PluginContractInstrumentationTest` MUST 覆盖: 两个服务的显式绑定, `getInfo()` 身份与能力, `resValue` 身份与 Kotlin 常量一致, 目录形状与键集合, Manifest 导出 / 权限 / intent-filter (发现, INFO, 执行, Wake), 权限集合精确.
 - `EpubReaderIntentPolicyInstrumentationTest`: 完整 v2 信封被接受, 协议 / 身份 / 宿主版本 / 来源 / 授权 / ClipData / 父子关系 / 格式门的每条拒绝路径.
 - `book/PfdResourceInstrumentationTest`: 描述符资源的长度与定位读 (含并发), Readium 经描述符打开 EPUB 2 / EPUB 3 样本 (标题, 阅读顺序, 目录, 章节内容), 损坏样本以错误结束而不崩溃.
+- `EpubReaderUiInstrumentationTest`, `EpubReaderProgressInstrumentationTest`: 经 debug `EpubReaderTestContentProvider` 用完整 v2 信封启动阅读器; 翻页, 目录跳转, 重建恢复, 错误态, 进度落盘与重开恢复, 别名, 音量键与滚动模式, 就绪前跳转重放; 证据写入 `files/p0-spike/` 与 `files/p1-evidence/`, 用 `adb exec-out run-as <包名> cat` 拉取.
+- `book/BookFingerprintInstrumentationTest`: 大样本 (200 MiB, 空间不足时 64 MiB) 经描述符的临时键与全量哈希耗时.
 - 有设备或模拟器时执行 `:app:connectedDebugAndroidTest` (API 24 与 API 35 各一次); 性能度量与正确性测试分开.
 
 ### 15.3 设备冒烟
