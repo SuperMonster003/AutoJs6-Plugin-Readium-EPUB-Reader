@@ -26,7 +26,7 @@
 | 发现服务 | `ExplorerActionService` (`org.autojs.plugin.EXPLORER_ACTION`), `PluginInfoService` (`org.autojs.plugin.INFO`) |
 | 声明协议 / 最低宿主 / 审计宿主 | v2 / 5269 / 5282 (协议 v22), 单点定义于 `gradle/explorer-action-compatibility.properties` |
 | 脚本全局对象 | `epub` (宿主侧, 路线图 D1 / P6, 尚未落地) |
-| 专用 API | `epub-api` (宿主 `plugin-api/epub-api`, 路线图 P5.1 落地后以 AAR 形式进入 `libs/`) |
+| 专用 API | `epub-api` (宿主 `plugin-api/epub-api`, 契约版本 1; P5.1 起以 `libs/epub-api.aar` 锁定, 来源宿主提交见 `libs/README.md`) |
 | 阅读引擎 | Readium Kotlin Toolkit `3.4.0` (`readium-shared` / `readium-streamer` / `readium-navigator` / `readium-navigator-media-tts`, 路线图 D2 / D18) |
 | 平台版本插件 | `io.github.supermonster003.autojs6-platform-versions` 1.8.3 |
 | 发布文件名 | `autojs6-plugin-readium-epub-reader-v{VERSION_NAME}-{CRC32}.apk` (单 APK) |
@@ -123,7 +123,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 ### 5.2 仓库边界
 
 - Gradle 构建 MUST 自包含. 禁止引用仓库外部的 JAR, AAR, `flatDir` 或兄弟项目路径 (例如 `../AutoJs6/...`).
-- 宿主 API AAR MUST 复制到 `libs/` 并在 `locks/host-api-aars.lock` 记录小写 SHA-256; `app/build.gradle.kts` 在配置期校验文件存在, 非 debug 命名, 哈希匹配, 锁文件键集合精确, 且 `explorer-action-api.sha256` 与 `gradle/explorer-action-compatibility.properties` 的 `explorerActionApiSha256` 一致. 更新 AAR 时同步更新锁文件, 兼容属性, `docs/explorer-action-compatibility.md`, `THIRD_PARTY_NOTICES.md` 与契约测试.
+- 宿主 API AAR MUST 复制到 `libs/` 并在 `locks/host-api-aars.lock` 记录小写 SHA-256; `app/build.gradle.kts` 在配置期校验文件存在, 非 debug 命名, 哈希匹配, 锁文件键集合精确, 且 `explorer-action-api.sha256` 与 `gradle/explorer-action-compatibility.properties` 的 `explorerActionApiSha256` 一致. 更新 AAR 时同步更新锁文件, 兼容属性, `docs/explorer-action-compatibility.md`, `THIRD_PARTY_NOTICES.md` 与契约测试. `epub-api.aar` (P5.1) 单独记录来源宿主提交 (`libs/README.md`); 三个 AAR 不要求出自同一宿主提交, 但被替换时锁文件, 声明文件与 `libs/README.md` 必须在同一提交更新.
 - `explorer-action-api.aar` 是冻结的 v1 描述符 (协议 v2 复用); 升级到 v4+ 需要不同的 host session 资源模型, 只改目录版本号是禁止的 (见兼容矩阵 "Upgrade procedure").
 - 宿主与插件需要同步更新时分别修改各仓库 (宿主 `D:/idea-projects/AutoJs6`), 不通过跨仓库相对路径制造隐式耦合.
 
