@@ -28,6 +28,7 @@
 | 脚本全局对象 | `epub` (宿主侧, 路线图 D1 / P6, 尚未落地) |
 | 专用 API | `epub-api` (宿主 `plugin-api/epub-api`, 契约版本 1; P5.1 起以 `libs/epub-api.aar` 锁定, 来源宿主提交见 `libs/README.md`) |
 | 阅读引擎 | Readium Kotlin Toolkit `3.4.0` (`readium-shared` / `readium-streamer` / `readium-navigator` / `readium-navigator-media-tts`, 路线图 D2 / D18) |
+| 持久化 (高亮 / 笔记) | Room `2.8.1` (`room-runtime` 运行时, `room-compiler` 经 KSP; KSP 插件版本来自平台版本插件的 `gradle.ksp.version`; schema 导出到 `app/schemas/`, 路线图 D4 / P9) |
 | 平台版本插件 | `io.github.supermonster003.autojs6-platform-versions` 1.8.3 |
 | 发布文件名 | `autojs6-plugin-readium-epub-reader-v{VERSION_NAME}-{CRC32}.apk` (单 APK) |
 
@@ -135,7 +136,7 @@ AutoJs6-Plugin-Readium-EPUB-Reader/
 
 ### 5.4 不启用 ABI 拆分的理由
 
-插件完全由 Kotlin / Java 字节码与普通资源构成 (Readium 及其传递依赖 media3, jsoup, kotlinx 均为纯 JVM 库), 拆分包内容实质相同, 不会带来下载或兼容性收益. 因此:
+插件完全由 Kotlin / Java 字节码与普通资源构成 (Readium 及其传递依赖 media3, jsoup, kotlinx 与 Room 的 `room-runtime` 均为纯 JVM 库; Room 使用系统 SQLite, 不引入 `sqlite-bundled`), 拆分包内容实质相同, 不会带来下载或兼容性收益. 因此:
 
 - 不配置 `splits.abi`, 不配置 `ndk.abiFilters`, 每次发布只有一个 APK; `nativeAlignment { expectNoNativeLibraries }` 在构建期拒绝意外引入的原生库.
 - `getInfo()` MUST 显式写有 `supportedAbis = emptyArray()`, 测试断言其为显式空数组.
